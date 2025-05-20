@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:intl/intl.dart';
+import 'package:jitsi_meet_flutter_sdk/jitsi_meet_flutter_sdk.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/core.dart';
 import '../api/model/model.dart';
@@ -23,6 +25,38 @@ import 'message_list.dart';
 import 'poll.dart';
 import 'store.dart';
 import 'text.dart';
+
+final _jitsiMeet = JitsiMeet();
+
+Future<void> _startJitsiMeeting(String meetingUrl) async {
+  try {
+    final uri = Uri.parse(meetingUrl);
+    final roomName = uri.pathSegments.lastWhere((e) => e.isNotEmpty, orElse: () => 'zulip-meeting');
+
+    await _jitsiMeet.join(JitsiMeetConferenceOptions(
+      serverURL: uri.origin,  // "https://meet.jit.si"
+      room: roomName,
+      configOverrides: {
+        "startWithAudioMuted": false,
+        "startWithVideoMuted": false,
+      },
+      featureFlags: {
+        "welcomepage.enabled": false,    // Убрать приветственный экран
+        "prejoinpage.enabled": false,    // Убрать экран "Присоединиться"
+        "invite.enabled": false,         // Скрыть кнопку приглашений
+        "pip.enabled": true,             // Включить режим "картинка в картинке"
+      },
+      // Опционально: данные пользователя
+      userInfo: JitsiMeetUserInfo(
+        displayName: "Zulip User",       // Можно заменить на реальное имя
+        email: "user@zulip.com",
+      ),
+    ));
+  } catch (e) {
+    debugPrint('Jitsi Error: $e');
+    rethrow;  // Для обработки в вызывающем коде
+  }
+}
 
 /// A central place for styles for Zulip content (rendered Zulip Markdown).
 ///
@@ -52,20 +86,20 @@ class ContentTheme extends ThemeExtension<ContentTheme> {
       colorTableHeaderBackground: const HSLColor.fromAHSL(1, 0, 0, 0.93).toColor(),
       colorThematicBreak: const HSLColor.fromAHSL(1, 0, 0, .87).toColor(),
       textStylePlainParagraph: _plainParagraphCommon(context).copyWith(
-        color: const HSLColor.fromAHSL(1, 0, 0, 0.15).toColor(),
-        debugLabel: 'ContentTheme.textStylePlainParagraph'),
+          color: const HSLColor.fromAHSL(1, 0, 0, 0.15).toColor(),
+          debugLabel: 'ContentTheme.textStylePlainParagraph'),
       textStyleEmoji: TextStyle(
-        fontFamily: emojiFontFamily, fontFamilyFallback: const []),
+          fontFamily: emojiFontFamily, fontFamilyFallback: const []),
       codeBlockTextStyles: CodeBlockTextStyles.light(context),
       textStyleError: const TextStyle(fontSize: kBaseFontSize, color: Colors.red)
-        .merge(weightVariableTextStyle(context, wght: 700)),
+          .merge(weightVariableTextStyle(context, wght: 700)),
       textStyleErrorCode: kMonospaceTextStyle
-        .merge(const TextStyle(fontSize: kBaseFontSize, color: Colors.red)),
+          .merge(const TextStyle(fontSize: kBaseFontSize, color: Colors.red)),
       textStyleInlineCode: kMonospaceTextStyle.merge(TextStyle(
-        backgroundColor: const HSLColor.fromAHSL(0.06, 0, 0, 0).toColor())),
+          backgroundColor: const HSLColor.fromAHSL(0.06, 0, 0, 0).toColor())),
       textStyleInlineMath: kMonospaceTextStyle.merge(TextStyle(
         // TODO(#46) this won't be needed
-        backgroundColor: const HSLColor.fromAHSL(1, 240, 0.4, 0.93).toColor())),
+          backgroundColor: const HSLColor.fromAHSL(1, 240, 0.4, 0.93).toColor())),
     );
   }
 
@@ -85,20 +119,20 @@ class ContentTheme extends ThemeExtension<ContentTheme> {
       colorTableHeaderBackground: const HSLColor.fromAHSL(0.5, 0, 0, 0).toColor(),
       colorThematicBreak: const HSLColor.fromAHSL(1, 0, 0, .87).toColor().withValues(alpha: 0.2),
       textStylePlainParagraph: _plainParagraphCommon(context).copyWith(
-        color: const HSLColor.fromAHSL(1, 0, 0, 0.85).toColor(),
-        debugLabel: 'ContentTheme.textStylePlainParagraph'),
+          color: const HSLColor.fromAHSL(1, 0, 0, 0.85).toColor(),
+          debugLabel: 'ContentTheme.textStylePlainParagraph'),
       textStyleEmoji: TextStyle(
-        fontFamily: emojiFontFamily, fontFamilyFallback: const []),
+          fontFamily: emojiFontFamily, fontFamilyFallback: const []),
       codeBlockTextStyles: CodeBlockTextStyles.dark(context),
       textStyleError: const TextStyle(fontSize: kBaseFontSize, color: Colors.red)
-        .merge(weightVariableTextStyle(context, wght: 700)),
+          .merge(weightVariableTextStyle(context, wght: 700)),
       textStyleErrorCode: kMonospaceTextStyle
-        .merge(const TextStyle(fontSize: kBaseFontSize, color: Colors.red)),
+          .merge(const TextStyle(fontSize: kBaseFontSize, color: Colors.red)),
       textStyleInlineCode: kMonospaceTextStyle.merge(TextStyle(
-        backgroundColor: const HSLColor.fromAHSL(0.08, 0, 0, 1).toColor())),
+          backgroundColor: const HSLColor.fromAHSL(0.08, 0, 0, 1).toColor())),
       textStyleInlineMath: kMonospaceTextStyle.merge(TextStyle(
         // TODO(#46) this won't be needed
-        backgroundColor: const HSLColor.fromAHSL(1, 240, 0.4, 0.4).toColor())),
+          backgroundColor: const HSLColor.fromAHSL(1, 240, 0.4, 0.4).toColor())),
     );
   }
 
@@ -191,7 +225,7 @@ class ContentTheme extends ThemeExtension<ContentTheme> {
     fontFamily: kDefaultFontFamily,
     fontFamilyFallback: defaultFontFamilyFallback,
   )
-    .merge(weightVariableTextStyle(context));
+      .merge(weightVariableTextStyle(context));
 
   @override
   ContentTheme copyWith({
@@ -287,12 +321,12 @@ class MessageContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final content = this.content;
     return InheritedMessage(message: message,
-      child: DefaultTextStyle(
-        style: ContentTheme.of(context).textStylePlainParagraph,
-        child: switch (content) {
-          ZulipContent() => BlockContentList(nodes: content.nodes),
-          PollContent()  => PollWidget(messageId: message.id, poll: content.poll),
-        }));
+        child: DefaultTextStyle(
+            style: ContentTheme.of(context).textStylePlainParagraph,
+            child: switch (content) {
+              ZulipContent() => BlockContentList(nodes: content.nodes),
+              PollContent()  => PollWidget(messageId: message.id, poll: content.poll),
+            }));
   }
 }
 
@@ -303,7 +337,7 @@ class InheritedMessage extends InheritedWidget {
 
   @override
   bool updateShouldNotify(covariant InheritedMessage oldWidget) =>
-    !identical(oldWidget.message, message);
+      !identical(oldWidget.message, message);
 
   static Message of(BuildContext context) {
     final widget = context.dependOnInheritedWidgetOfExactType<InheritedMessage>();
@@ -328,9 +362,9 @@ class BlockContentList extends StatelessWidget {
       ...nodes.map((node) {
         return switch (node) {
           LineBreakNode() =>
-            // This goes in a Column.  So to get the effect of a newline,
-            // just use an empty Text.
-            const Text(''),
+          // This goes in a Column.  So to get the effect of a newline,
+          // just use an empty Text.
+          const Text(''),
           ThematicBreakNode() => const ThematicBreak(),
           ParagraphNode() => Paragraph(node: node),
           HeadingNode() => Heading(node: node),
@@ -342,8 +376,8 @@ class BlockContentList extends StatelessWidget {
           ImageNodeList() => MessageImageList(node: node),
           ImageNode() => (){
             assert(false,
-              "[ImageNode] not allowed in [BlockContentList]. "
-              "It should be wrapped in [ImageNodeList]."
+            "[ImageNode] not allowed in [BlockContentList]. "
+                "It should be wrapped in [ImageNodeList]."
             );
             return MessageImage(node: node);
           }(),
@@ -352,20 +386,20 @@ class BlockContentList extends StatelessWidget {
           TableNode() => MessageTable(node: node),
           TableRowNode() => () {
             assert(false,
-              "[TableRowNode] not allowed in [BlockContentList]. "
-              "It should be wrapped in [TableNode]."
+            "[TableRowNode] not allowed in [BlockContentList]. "
+                "It should be wrapped in [TableNode]."
             );
             return const SizedBox.shrink();
           }(),
           TableCellNode() => () {
             assert(false,
-              "[TableCellNode] not allowed in [BlockContentList]. "
-              "It should be wrapped in [TableRowNode]."
+            "[TableCellNode] not allowed in [BlockContentList]. "
+                "It should be wrapped in [TableRowNode]."
             );
             return const SizedBox.shrink();
           }(),
           UnimplementedBlockContentNode() =>
-            Text.rich(_errorUnimplemented(node, context: context)),
+              Text.rich(_errorUnimplemented(node, context: context)),
         };
 
       }),
@@ -412,8 +446,8 @@ class Paragraph extends StatelessWidget {
     // For a non-empty paragraph, though — and where there was a `p` element
     // for the Zulip CSS to apply to — the margins are real.
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: text);
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: text);
   }
 }
 
@@ -434,19 +468,19 @@ class Heading extends StatelessWidget {
       HeadingLevel.h6 => 1.0,
     };
     return Padding(
-      padding: const EdgeInsets.only(top: 15, bottom: 5),
-      child: _buildBlockInlineContainer(
-        style: TextStyle(
-          fontSize: kBaseFontSize * emHeight,
-          height: 1.4,
-        )
-          // Could set boldness relative to ambient text style, which itself
-          // might be bolder than normal (e.g. in spoiler headers).
-          // But this didn't seem like a clear improvement and would make inline
-          // **bold** spans less distinct; discussion:
-          //   https://github.com/zulip/zulip-flutter/pull/706#issuecomment-2141326257
-          .merge(weightVariableTextStyle(context, wght: 600)),
-        node: node));
+        padding: const EdgeInsets.only(top: 15, bottom: 5),
+        child: _buildBlockInlineContainer(
+            style: TextStyle(
+              fontSize: kBaseFontSize * emHeight,
+              height: 1.4,
+            )
+            // Could set boldness relative to ambient text style, which itself
+            // might be bolder than normal (e.g. in spoiler headers).
+            // But this didn't seem like a clear improvement and would make inline
+            // **bold** spans less distinct; discussion:
+            //   https://github.com/zulip/zulip-flutter/pull/706#issuecomment-2141326257
+                .merge(weightVariableTextStyle(context, wght: 600)),
+            node: node));
   }
 }
 
@@ -458,16 +492,16 @@ class Quotation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 10),
-      child: Container(
-        padding: const EdgeInsets.only(left: 5),
-        decoration: BoxDecoration(
-          border: Border(
-            left: BorderSide(
-              width: 5,
-              // Web has the same color in light and dark mode.
-              color: const HSLColor.fromAHSL(1, 0, 0, 0.87).toColor()))),
-        child: BlockContentList(nodes: node.nodes)));
+        padding: const EdgeInsets.only(left: 10),
+        child: Container(
+            padding: const EdgeInsets.only(left: 5),
+            decoration: BoxDecoration(
+                border: Border(
+                    left: BorderSide(
+                        width: 5,
+                        // Web has the same color in light and dark mode.
+                        color: const HSLColor.fromAHSL(1, 0, 0, 0.87).toColor()))),
+            child: BlockContentList(nodes: node.nodes)));
   }
 }
 
@@ -483,22 +517,22 @@ class ListNodeWidget extends StatelessWidget {
       final item = node.items[index];
       String marker;
       switch (node.style) {
-        // TODO(#161): different unordered marker styles at different levels of nesting
-        //   see:
-        //     https://html.spec.whatwg.org/multipage/rendering.html#lists
-        //     https://www.w3.org/TR/css-counter-styles-3/#simple-symbolic
-        // TODO proper alignment of unordered marker; should be "• ", one space,
-        //   but that comes out too close to item; not sure what's fixing that
-        //   in a browser
+      // TODO(#161): different unordered marker styles at different levels of nesting
+      //   see:
+      //     https://html.spec.whatwg.org/multipage/rendering.html#lists
+      //     https://www.w3.org/TR/css-counter-styles-3/#simple-symbolic
+      // TODO proper alignment of unordered marker; should be "• ", one space,
+      //   but that comes out too close to item; not sure what's fixing that
+      //   in a browser
         case ListStyle.unordered: marker = "•   "; break;
-        // TODO(#59) ordered lists starting not at 1
+      // TODO(#59) ordered lists starting not at 1
         case ListStyle.ordered: marker = "${index+1}. "; break;
       }
       return ListItemWidget(marker: marker, nodes: item);
     });
     return Padding(
-      padding: const EdgeInsets.only(top: 2, bottom: 5),
-      child: Column(children: items));
+        padding: const EdgeInsets.only(top: 2, bottom: 5),
+        child: Column(children: items));
   }
 }
 
@@ -511,16 +545,16 @@ class ListItemWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.start,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: localizedTextBaseline(context),
-      children: [
-        SizedBox(
-          width: 20, // TODO handle long numbers in <ol>, like https://github.com/zulip/zulip/pull/25063
-          child: Align(
-            alignment: AlignmentDirectional.topEnd, child: Text(marker))),
-        Expanded(child: BlockContentList(nodes: nodes)),
-      ]);
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: localizedTextBaseline(context),
+        children: [
+          SizedBox(
+              width: 20, // TODO handle long numbers in <ol>, like https://github.com/zulip/zulip/pull/25063
+              child: Align(
+                  alignment: AlignmentDirectional.topEnd, child: Text(marker))),
+          Expanded(child: BlockContentList(nodes: nodes)),
+        ]);
   }
 }
 
@@ -537,9 +571,9 @@ class _SpoilerState extends State<Spoiler> with TickerProviderStateMixin {
   bool expanded = false;
 
   late final AnimationController _controller = AnimationController(
-    duration: const Duration(milliseconds: 400), vsync: this);
+      duration: const Duration(milliseconds: 400), vsync: this);
   late final Animation<double> _animation = CurvedAnimation(
-    parent: _controller, curve: Curves.easeInOut);
+      parent: _controller, curve: Curves.easeInOut);
 
   @override
   void dispose() {
@@ -564,53 +598,53 @@ class _SpoilerState extends State<Spoiler> with TickerProviderStateMixin {
     final zulipLocalizations = ZulipLocalizations.of(context);
     final header = widget.node.header;
     final effectiveHeader = header.isNotEmpty
-      ? header
-      : [ParagraphNode(links: null,
-           nodes: [TextNode(zulipLocalizations.spoilerDefaultHeaderText)])];
+        ? header
+        : [ParagraphNode(links: null,
+        nodes: [TextNode(zulipLocalizations.spoilerDefaultHeaderText)])];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 5, 0, 15),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          // Web has the same color in light and dark mode.
-          border: Border.all(color: const Color(0xff808080)),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Padding(padding: const EdgeInsetsDirectional.fromSTEB(10, 2, 8, 2),
-          child: Column(
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: _handleTap,
-                child: Padding(
-                  padding: const EdgeInsets.all(5),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Expanded(
-                      child: DefaultTextStyle.merge(
-                        style: weightVariableTextStyle(context, wght: 700),
-                        child: BlockContentList(
-                          nodes: effectiveHeader))),
-                    RotationTransition(
-                      turns: _animation.drive(Tween(begin: 0, end: 0.5)),
-                      // Web has the same color in light and dark mode.
-                      child: const Icon(color: Color(0xffd4d4d4), size: 25,
-                        Icons.expand_more)),
-                  ]))),
-              FadeTransition(
-                opacity: _animation,
-                child: const SizedBox(height: 0, width: double.infinity,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        // Web has the same color in light and dark mode.
-                        bottom: BorderSide(width: 1, color: Color(0xff808080))))))),
-              SizeTransition(
-                sizeFactor: _animation,
-                axis: Axis.vertical,
-                axisAlignment: -1,
-                child: Padding(
-                  padding: const EdgeInsets.all(5),
-                  child: BlockContentList(nodes: widget.node.content))),
-            ]))));
+        padding: const EdgeInsets.fromLTRB(0, 5, 0, 15),
+        child: DecoratedBox(
+            decoration: BoxDecoration(
+              // Web has the same color in light and dark mode.
+              border: Border.all(color: const Color(0xff808080)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Padding(padding: const EdgeInsetsDirectional.fromSTEB(10, 2, 8, 2),
+                child: Column(
+                    children: [
+                      GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: _handleTap,
+                          child: Padding(
+                              padding: const EdgeInsets.all(5),
+                              child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                Expanded(
+                                    child: DefaultTextStyle.merge(
+                                        style: weightVariableTextStyle(context, wght: 700),
+                                        child: BlockContentList(
+                                            nodes: effectiveHeader))),
+                                RotationTransition(
+                                    turns: _animation.drive(Tween(begin: 0, end: 0.5)),
+                                    // Web has the same color in light and dark mode.
+                                    child: const Icon(color: Color(0xffd4d4d4), size: 25,
+                                        Icons.expand_more)),
+                              ]))),
+                      FadeTransition(
+                          opacity: _animation,
+                          child: const SizedBox(height: 0, width: double.infinity,
+                              child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                      border: Border(
+                                        // Web has the same color in light and dark mode.
+                                          bottom: BorderSide(width: 1, color: Color(0xff808080))))))),
+                      SizeTransition(
+                          sizeFactor: _animation,
+                          axis: Axis.vertical,
+                          axisAlignment: -1,
+                          child: Padding(
+                              padding: const EdgeInsets.all(5),
+                              child: BlockContentList(nodes: widget.node.content))),
+                    ]))));
   }
 }
 
@@ -622,7 +656,7 @@ class MessageImageList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Wrap(
-      children: node.images.map((imageNode) => MessageImage(node: imageNode)).toList());
+        children: node.images.map((imageNode) => MessageImage(node: imageNode)).toList());
   }
 }
 
@@ -641,28 +675,28 @@ class MessageImage extends StatelessWidget {
     final store = PerAccountStoreWidget.of(context);
     final resolvedSrcUrl = store.tryResolveUrl(srcUrl);
     final resolvedThumbnailUrl = thumbnailUrl == null
-      ? null : store.tryResolveUrl(thumbnailUrl);
+        ? null : store.tryResolveUrl(thumbnailUrl);
 
     // TODO if src fails to parse, show an explicit "broken image"
 
     return MessageMediaContainer(
-      onTap: resolvedSrcUrl == null ? null : () { // TODO(log)
-        Navigator.of(context).push(getImageLightboxRoute(
-          context: context,
-          message: message,
-          src: resolvedSrcUrl,
-          thumbnailUrl: resolvedThumbnailUrl,
-          originalWidth: node.originalWidth,
-          originalHeight: node.originalHeight));
-      },
-      child: node.loading
-        ? const CupertinoActivityIndicator()
-        : resolvedSrcUrl == null ? null : LightboxHero(
+        onTap: resolvedSrcUrl == null ? null : () { // TODO(log)
+          Navigator.of(context).push(getImageLightboxRoute(
+              context: context,
+              message: message,
+              src: resolvedSrcUrl,
+              thumbnailUrl: resolvedThumbnailUrl,
+              originalWidth: node.originalWidth,
+              originalHeight: node.originalHeight));
+        },
+        child: node.loading
+            ? const CupertinoActivityIndicator()
+            : resolvedSrcUrl == null ? null : LightboxHero(
             message: message,
             src: resolvedSrcUrl,
             child: RealmContentNetworkImage(
-              resolvedThumbnailUrl ?? resolvedSrcUrl,
-              filterQuality: FilterQuality.medium)));
+                resolvedThumbnailUrl ?? resolvedSrcUrl,
+                filterQuality: FilterQuality.medium)));
   }
 }
 
@@ -678,21 +712,21 @@ class MessageInlineVideo extends StatelessWidget {
     final resolvedSrc = store.tryResolveUrl(node.srcUrl);
 
     return MessageMediaContainer(
-      onTap: resolvedSrc == null ? null : () { // TODO(log)
-        Navigator.of(context).push(getVideoLightboxRoute(
-          context: context,
-          message: message,
-          src: resolvedSrc));
-      },
-      child: Container(
-        color: Colors.black, // Web has the same color in light and dark mode.
-        alignment: Alignment.center,
-        // To avoid potentially confusing UX, do not show play icon as
-        // we also disable onTap above.
-        child: resolvedSrc == null ? null : const Icon( // TODO(log)
-          Icons.play_arrow_rounded,
-          color: Colors.white, // Web has the same color in light and dark mode.
-          size: 32)));
+        onTap: resolvedSrc == null ? null : () { // TODO(log)
+          Navigator.of(context).push(getVideoLightboxRoute(
+              context: context,
+              message: message,
+              src: resolvedSrc));
+        },
+        child: Container(
+            color: Colors.black, // Web has the same color in light and dark mode.
+            alignment: Alignment.center,
+            // To avoid potentially confusing UX, do not show play icon as
+            // we also disable onTap above.
+            child: resolvedSrc == null ? null : const Icon( // TODO(log)
+                Icons.play_arrow_rounded,
+                color: Colors.white, // Web has the same color in light and dark mode.
+                size: 32)));
   }
 }
 
@@ -707,21 +741,21 @@ class MessageEmbedVideo extends StatelessWidget {
     final previewImageSrcUrl = store.tryResolveUrl(node.previewImageSrcUrl);
 
     return MessageMediaContainer(
-      onTap: () => _launchUrl(context, node.hrefUrl),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (previewImageSrcUrl != null) // TODO(log)
-            RealmContentNetworkImage(
-              previewImageSrcUrl,
-              filterQuality: FilterQuality.medium),
-          // Show the "play" icon even when previewImageSrcUrl didn't resolve;
-          // the action uses hrefUrl, which might still work.
-          const Icon(
-            Icons.play_arrow_rounded,
-            color: Colors.white, // Web has the same color in light and dark mode.
-            size: 32),
-        ]));
+        onTap: () => _launchUrl(context, node.hrefUrl),
+        child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (previewImageSrcUrl != null) // TODO(log)
+                RealmContentNetworkImage(
+                    previewImageSrcUrl,
+                    filterQuality: FilterQuality.medium),
+              // Show the "play" icon even when previewImageSrcUrl didn't resolve;
+              // the action uses hrefUrl, which might still work.
+              const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white, // Web has the same color in light and dark mode.
+                  size: 32),
+            ]));
   }
 }
 
@@ -738,21 +772,21 @@ class MessageMediaContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: UnconstrainedBox(
-        alignment: Alignment.centerLeft,
-        child: Padding(
-          // TODO clean up this padding by imitating web less precisely;
-          //   in particular, avoid adding loose whitespace at end of message.
-          padding: const EdgeInsets.only(right: 5, bottom: 5),
-          child: ColoredBox(
-            color: ContentTheme.of(context).colorMessageMediaContainerBackground,
+        onTap: onTap,
+        child: UnconstrainedBox(
+            alignment: Alignment.centerLeft,
             child: Padding(
-              padding: const EdgeInsets.all(1),
-              child: SizedBox(
-                height: 100,
-                width: 150,
-                child: child))))));
+              // TODO clean up this padding by imitating web less precisely;
+              //   in particular, avoid adding loose whitespace at end of message.
+                padding: const EdgeInsets.only(right: 5, bottom: 5),
+                child: ColoredBox(
+                    color: ContentTheme.of(context).colorMessageMediaContainerBackground,
+                    child: Padding(
+                        padding: const EdgeInsets.all(1),
+                        child: SizedBox(
+                            height: 100,
+                            width: 150,
+                            child: child))))));
   }
 }
 
@@ -765,12 +799,12 @@ class CodeBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final styles = ContentTheme.of(context).codeBlockTextStyles;
     return _CodeBlockContainer(
-      borderColor: Colors.transparent,
-      child: Text.rich(TextSpan(
-        style: styles.plain,
-        children: node.spans
-          .map((node) => TextSpan(style: styles.forSpan(node.type), text: node.text))
-          .toList(growable: false))));
+        borderColor: Colors.transparent,
+        child: Text.rich(TextSpan(
+            style: styles.plain,
+            children: node.spans
+                .map((node) => TextSpan(style: styles.forSpan(node.type), text: node.text))
+                .toList(growable: false))));
   }
 }
 
@@ -783,30 +817,30 @@ class _CodeBlockContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        color: ContentTheme.of(context).colorCodeBlockBackground,
-        border: Border.all(
-          width: 1,
-          color: borderColor),
-        borderRadius: BorderRadius.circular(4)),
-      child: SingleChildScrollViewWithScrollbar(
-        scrollDirection: Axis.horizontal,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(7, 5, 7, 3),
-          child: child)));
+        decoration: BoxDecoration(
+            color: ContentTheme.of(context).colorCodeBlockBackground,
+            border: Border.all(
+                width: 1,
+                color: borderColor),
+            borderRadius: BorderRadius.circular(4)),
+        child: SingleChildScrollViewWithScrollbar(
+            scrollDirection: Axis.horizontal,
+            child: Padding(
+                padding: const EdgeInsets.fromLTRB(7, 5, 7, 3),
+                child: child)));
   }
 }
 
 class SingleChildScrollViewWithScrollbar extends StatefulWidget {
   const SingleChildScrollViewWithScrollbar(
-    {super.key, required this.scrollDirection, required this.child});
+      {super.key, required this.scrollDirection, required this.child});
 
   final Axis scrollDirection;
   final Widget child;
 
   @override
   State<SingleChildScrollViewWithScrollbar> createState() =>
-    _SingleChildScrollViewWithScrollbarState();
+      _SingleChildScrollViewWithScrollbarState();
 }
 
 class _SingleChildScrollViewWithScrollbarState
@@ -816,11 +850,11 @@ class _SingleChildScrollViewWithScrollbarState
   @override
   Widget build(BuildContext context) {
     return Scrollbar(
-      controller: controller,
-      child: SingleChildScrollView(
         controller: controller,
-        scrollDirection: widget.scrollDirection,
-        child: widget.child));
+        child: SingleChildScrollView(
+            controller: controller,
+            scrollDirection: widget.scrollDirection,
+            child: widget.child));
   }
 }
 
@@ -832,10 +866,10 @@ class MathBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _CodeBlockContainer(
-      borderColor: ContentTheme.of(context).colorMathBlockBorder,
-      child: Text.rich(TextSpan(
-        style: ContentTheme.of(context).codeBlockTextStyles.plain,
-        children: [TextSpan(text: node.texSource)])));
+        borderColor: ContentTheme.of(context).colorMathBlockBorder,
+        child: Text.rich(TextSpan(
+            style: ContentTheme.of(context).codeBlockTextStyles.plain,
+            children: [TextSpan(text: node.texSource)])));
   }
 }
 
@@ -850,10 +884,10 @@ Widget _buildBlockInlineContainer({
 }) {
   if (node.links == null) {
     return InlineContent(recognizer: null, linkRecognizers: null,
-      style: style, nodes: node.nodes, textAlign: textAlign);
+        style: style, nodes: node.nodes, textAlign: textAlign);
   }
   return _BlockInlineContainer(links: node.links!,
-    style: style, nodes: node.nodes, textAlign: textAlign);
+      style: style, nodes: node.nodes, textAlign: textAlign);
 }
 
 class _BlockInlineContainer extends StatefulWidget {
@@ -1332,6 +1366,17 @@ void _launchUrl(BuildContext context, String urlString) async {
   if (url == null) { // TODO(log)
     showError(context, null);
     return;
+  }
+
+  // ============== НОВЫЙ БЛОК ДЛЯ JITSI ==============
+  if (url.host.contains('jit.si') || url.host.contains('8x8.vc')) {
+    try {
+      await _startJitsiMeeting(url.toString());
+      return; // Если Jitsi запустился, выходим из функции
+    } catch (e) {
+      debugPrint('Jitsi launch failed: $e');
+      // Продолжаем обычную обработку ссылки
+    }
   }
 
   final internalNarrow = parseInternalLink(url, store);

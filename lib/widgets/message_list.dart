@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:jitsi_meet_flutter_sdk/jitsi_meet_flutter_sdk.dart';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_color_models/flutter_color_models.dart';
